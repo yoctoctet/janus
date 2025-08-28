@@ -3,6 +3,7 @@ set(SOURCES
     main.cpp
     simulator.cpp
     config.cpp
+    test_gpu_verification.cpp
 )
 
 set(CUDA_SOURCES

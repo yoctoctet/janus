@@ -1,0 +1,23 @@
+# Janus P3M Simulation Configuration
+
+[simulation]
+name = "test_simulation"
+num_particles = 2000
+time_step = 0.002
+max_steps = 5000
+use_gpu = true
+
+[gpu]
+block_size = 512
+
+[integrator]
+dt_max = 1e-3
+dt_min = 1e-6
+theta = 0.5
+eta_v = 0.4
+eta_a = 0.4
+softening = 1e-3
+
+[physics]
+G = 1.0
+sign_matrix = [1, -1, -1, 1]

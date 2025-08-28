@@ -7,8 +7,8 @@ namespace janus
 
     // CUDA kernel declarations
     __global__ void hello_gpu_kernel(float *data, int size);
-    __global__ void update_positions_kernel(float *positions, float *velocities,
-                                            float time_step, int num_particles);
+    __global__ void update_positions_kernel(double *x, double *y, double *vx, double *vy,
+                                            double time_step, int num_particles);
 
     // Host functions for GPU operations
     cudaError_t allocate_device_memory(void **device_ptr, size_t size);
@@ -19,5 +19,9 @@ namespace janus
     // GPU utility functions
     int get_optimal_block_size(int data_size);
     int get_optimal_grid_size(int data_size, int block_size);
+
+    // High-level GPU kernel launcher
+    cudaError_t launch_update_positions_kernel(double *d_x, double *d_y, double *d_vx, double *d_vy,
+                                               double time_step, int num_particles);
 
 } // namespace janus

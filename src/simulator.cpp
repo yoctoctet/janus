@@ -36,20 +36,25 @@ namespace janus
 
         spdlog::info("Initializing simulation data...");
 
-        // Initialize simulation data
-        positions_.resize(config_.num_particles * 3, 0.0f);
-        velocities_.resize(config_.num_particles * 3, 0.0f);
+        // Initialize simulation data - SoA format for coalesced access
+        x_.resize(config_.num_particles, 0.0);
+        y_.resize(config_.num_particles, 0.0);
+        vx_.resize(config_.num_particles, 0.0);
+        vy_.resize(config_.num_particles, 0.0);
+        m_.resize(config_.num_particles, 1.0);
+        sgn_.resize(config_.num_particles, 1);
 
-        // Initialize with some test data
+        // Initialize with some test data (2D only)
         for (int i = 0; i < config_.num_particles; ++i)
         {
-            positions_[i * 3] = static_cast<float>(i) * 0.1f;
-            positions_[i * 3 + 1] = static_cast<float>(i) * 0.1f;
-            positions_[i * 3 + 2] = static_cast<float>(i) * 0.1f;
+            x_[i] = static_cast<double>(i) * 0.1;
+            y_[i] = static_cast<double>(i) * 0.1;
 
-            velocities_[i * 3] = 0.01f;
-            velocities_[i * 3 + 1] = 0.01f;
-            velocities_[i * 3 + 2] = 0.01f;
+            vx_[i] = 0.01;
+            vy_[i] = 0.01;
+
+            m_[i] = 1.0;
+            sgn_[i] = 1;
         }
 
         if (config_.use_gpu)
@@ -105,10 +110,11 @@ namespace janus
         }
         else
         {
-            // CPU fallback - simple position update
-            for (size_t i = 0; i < positions_.size(); ++i)
+            // CPU fallback - simple position update (2D only)
+            for (size_t i = 0; i < x_.size(); ++i)
             {
-                positions_[i] += velocities_[i] * static_cast<float>(config_.time_step);
+                x_[i] += vx_[i] * config_.time_step;
+                y_[i] += vy_[i] * config_.time_step;
             }
         }
 
@@ -131,8 +137,12 @@ namespace janus
             cleanup_gpu();
         }
 
-        positions_.clear();
-        velocities_.clear();
+        x_.clear();
+        y_.clear();
+        vx_.clear();
+        vy_.clear();
+        m_.clear();
+        sgn_.clear();
 
         initialized_ = false;
         spdlog::info("Simulator finalized");
@@ -142,30 +152,64 @@ namespace janus
     {
         spdlog::info("Initializing GPU resources...");
 
-        data_size_ = positions_.size() * sizeof(float);
+        size_t data_size = x_.size() * sizeof(double);
 
-        // Allocate device memory
+        // Allocate separate device memory for coalesced access
         cudaError_t err;
-        err = allocate_device_memory(&device_data_, data_size_ * 2); // positions + velocities
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_x), data_size);
         if (err != cudaSuccess)
         {
-            spdlog::error("Failed to allocate GPU memory: {}", cudaGetErrorString(err));
+            spdlog::error("Failed to allocate GPU memory for x: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_y), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to allocate GPU memory for y: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_vx), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to allocate GPU memory for vx: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_vy), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to allocate GPU memory for vy: {}", cudaGetErrorString(err));
             return;
         }
 
         // Copy data to device
-        err = copy_to_device(device_data_, positions_.data(), data_size_);
+        err = copy_to_device(d_x, x_.data(), data_size);
         if (err != cudaSuccess)
         {
-            spdlog::error("Failed to copy positions to GPU: {}", cudaGetErrorString(err));
+            spdlog::error("Failed to copy x to GPU: {}", cudaGetErrorString(err));
             return;
         }
 
-        err = copy_to_device(static_cast<char *>(device_data_) + data_size_,
-                             velocities_.data(), data_size_);
+        err = copy_to_device(d_y, y_.data(), data_size);
         if (err != cudaSuccess)
         {
-            spdlog::error("Failed to copy velocities to GPU: {}", cudaGetErrorString(err));
+            spdlog::error("Failed to copy y to GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = copy_to_device(d_vx, vx_.data(), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy vx to GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = copy_to_device(d_vy, vy_.data(), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy vy to GPU: {}", cudaGetErrorString(err));
             return;
         }
 
@@ -174,7 +218,7 @@ namespace janus
 
     void Simulator::run_gpu_kernel()
     {
-        if (!device_data_)
+        if (!d_x || !d_y || !d_vx || !d_vy)
         {
             spdlog::error("GPU not initialized");
             return;
@@ -184,17 +228,32 @@ namespace janus
         nvtxRangePush("GPU Kernel");
 #endif
 
-        // For now, just perform CPU computation on GPU-allocated data
-        // In a real implementation, this would launch CUDA kernels
-        float *positions = static_cast<float *>(device_data_);
-        float *velocities = static_cast<float *>(device_data_) + config_.num_particles;
-
-        for (int i = 0; i < config_.num_particles; ++i)
+        // Launch GPU kernel using the wrapper function
+        cudaError_t err = launch_update_positions_kernel(d_x, d_y, d_vx, d_vy,
+                                                         config_.time_step, config_.num_particles);
+        if (err != cudaSuccess)
         {
-            positions[i] += velocities[i] * static_cast<float>(config_.time_step);
+            spdlog::error("Failed to launch GPU kernel: {}", cudaGetErrorString(err));
+            return;
         }
 
-        spdlog::info("GPU kernel simulation completed (CPU fallback for now)");
+        // Copy updated positions back from device to host
+        size_t data_size = config_.num_particles * sizeof(double);
+        err = copy_from_device(x_.data(), d_x, data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy x from GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = copy_from_device(y_.data(), d_y, data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy y from GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        spdlog::info("GPU kernel simulation completed");
 
 #ifdef JANUS_USE_NVTX
         nvtxRangePop();
@@ -203,12 +262,27 @@ namespace janus
 
     void Simulator::cleanup_gpu()
     {
-        if (device_data_)
+        if (d_x)
         {
-            free_device_memory(device_data_);
-            device_data_ = nullptr;
-            spdlog::info("GPU resources cleaned up");
+            free_device_memory(d_x);
+            d_x = nullptr;
         }
+        if (d_y)
+        {
+            free_device_memory(d_y);
+            d_y = nullptr;
+        }
+        if (d_vx)
+        {
+            free_device_memory(d_vx);
+            d_vx = nullptr;
+        }
+        if (d_vy)
+        {
+            free_device_memory(d_vy);
+            d_vy = nullptr;
+        }
+        spdlog::info("GPU resources cleaned up");
     }
 
 } // namespace janus

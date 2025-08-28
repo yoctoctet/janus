@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <filesystem>
+#include <vector>
 
 namespace janus
 {
@@ -18,7 +19,18 @@ namespace janus
 
         // GPU specific settings
         int block_size = 256;
-        int grid_size = 0; // Auto-calculated
+
+        // Integrator settings
+        double dt_max = 1e-3;
+        double dt_min = 1e-6;
+        double theta = 0.5;
+        double eta_v = 0.4;
+        double eta_a = 0.4;
+        double softening = 1e-3;
+
+        // Physics settings
+        double G = 1.0;
+        std::vector<int> sign_matrix = {1, -1, -1, 1};
     };
 
     class ConfigManager

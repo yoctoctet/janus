@@ -19,6 +19,46 @@ void test_config_default_construction()
         std::cerr << "FAILED: Default time_step incorrect" << std::endl;
         return;
     }
+    if (config.dt_max != 1e-3)
+    {
+        std::cerr << "FAILED: Default dt_max incorrect" << std::endl;
+        return;
+    }
+    if (config.dt_min != 1e-6)
+    {
+        std::cerr << "FAILED: Default dt_min incorrect" << std::endl;
+        return;
+    }
+    if (config.theta != 0.5)
+    {
+        std::cerr << "FAILED: Default theta incorrect" << std::endl;
+        return;
+    }
+    if (config.eta_v != 0.4)
+    {
+        std::cerr << "FAILED: Default eta_v incorrect" << std::endl;
+        return;
+    }
+    if (config.eta_a != 0.4)
+    {
+        std::cerr << "FAILED: Default eta_a incorrect" << std::endl;
+        return;
+    }
+    if (config.softening != 1e-3)
+    {
+        std::cerr << "FAILED: Default softening incorrect" << std::endl;
+        return;
+    }
+    if (config.G != 1.0)
+    {
+        std::cerr << "FAILED: Default G incorrect" << std::endl;
+        return;
+    }
+    if (config.sign_matrix != std::vector<int>{1, -1, -1, 1})
+    {
+        std::cerr << "FAILED: Default sign_matrix incorrect" << std::endl;
+        return;
+    }
     if (config.max_steps != 10000)
     {
         std::cerr << "FAILED: Default max_steps incorrect" << std::endl;
@@ -44,6 +84,16 @@ void test_config_manager_construction()
     if (config.num_particles != 1000)
     {
         std::cerr << "FAILED: ConfigManager particles incorrect" << std::endl;
+        return;
+    }
+    if (config.dt_max != 1e-3)
+    {
+        std::cerr << "FAILED: ConfigManager dt_max incorrect" << std::endl;
+        return;
+    }
+    if (config.G != 1.0)
+    {
+        std::cerr << "FAILED: ConfigManager G incorrect" << std::endl;
         return;
     }
     std::cout << "PASSED: ConfigManager construction" << std::endl;
