@@ -3,6 +3,7 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <cmath>
 
 #ifdef JANUS_USE_NVTX
 #include <nvtx3/nvToolsExt.h>
@@ -110,11 +111,33 @@ namespace janus
         }
         else
         {
-            // CPU fallback - simple position update (2D only)
+            // CPU implementation - Velocity Verlet integration (2D only)
+            const double dt = config_.time_step;
+            const double L = 1.0; // Box size, assuming unit box for now
+
             for (size_t i = 0; i < x_.size(); ++i)
             {
-                x_[i] += vx_[i] * config_.time_step;
-                y_[i] += vy_[i] * config_.time_step;
+                // Half kick: v += 0.5*dt*a(x)
+                // For now, a(x) = 0 (no forces), so velocity unchanged
+                // vx_[i] += 0.5 * dt * ax[i];
+                // vy_[i] += 0.5 * dt * ay[i];
+
+                // Drift + wrap: x = wrap(x + dt*v, L)
+                x_[i] = wrap(x_[i] + dt * vx_[i], L);
+                y_[i] = wrap(y_[i] + dt * vy_[i], L);
+
+                // Recompute a(x) - stub implementation (zero forces)
+                // ax[i] = 0.0;
+                // ay[i] = 0.0;
+
+                // Half kick: v += 0.5*dt*a(x)
+                // For now, a(x) = 0, so velocity unchanged
+                // vx_[i] += 0.5 * dt * ax[i];
+                // vy_[i] += 0.5 * dt * ay[i];
+
+                // Placeholder for dt limiter logging (next task)
+                // Log which dt limiter would fire based on current conditions
+                // This will be implemented in the next task
             }
         }
 
@@ -283,6 +306,17 @@ namespace janus
             d_vy = nullptr;
         }
         spdlog::info("GPU resources cleaned up");
+    }
+
+    // Utility function implementations
+    double Simulator::wrap(double u, double L)
+    {
+        return u - L * std::floor(u / L);
+    }
+
+    double Simulator::min_image(double dx, double L)
+    {
+        return dx - L * std::round(dx / L);
     }
 
 } // namespace janus

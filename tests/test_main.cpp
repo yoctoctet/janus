@@ -8,6 +8,7 @@ void test_simulator_construction();
 void test_simulator_initialization();
 void test_trivial_math();
 void test_gpu_hello_concept();
+void test_velocity_verlet_integration();
 
 int main(int argc, char *argv[])
 {
@@ -25,6 +26,7 @@ int main(int argc, char *argv[])
     test_simulator_initialization();
     test_trivial_math();
     test_gpu_hello_concept();
+    test_velocity_verlet_integration();
 
     std::cout << "========================" << std::endl;
     std::cout << "All tests completed!" << std::endl;

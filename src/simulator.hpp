@@ -42,6 +42,10 @@ namespace janus
         const std::vector<double> &get_velocities_x() const { return vx_; }
         const std::vector<double> &get_velocities_y() const { return vy_; }
 
+        // Utility functions
+        static double wrap(double u, double L);
+        static double min_image(double dx, double L);
+
     private:
         SimulationConfig config_;
         bool initialized_ = false;
