@@ -9,6 +9,9 @@ void test_simulator_initialization();
 void test_trivial_math();
 void test_gpu_hello_concept();
 void test_velocity_verlet_integration();
+void test_adaptive_timestep_calculation();
+void test_dt_limiter_bounds_verification();
+void test_spiked_velocity_acceleration_scenarios();
 
 int main(int argc, char *argv[])
 {
@@ -27,6 +30,9 @@ int main(int argc, char *argv[])
     test_trivial_math();
     test_gpu_hello_concept();
     test_velocity_verlet_integration();
+    test_adaptive_timestep_calculation();
+    test_dt_limiter_bounds_verification();
+    test_spiked_velocity_acceleration_scenarios();
 
     std::cout << "========================" << std::endl;
     std::cout << "All tests completed!" << std::endl;

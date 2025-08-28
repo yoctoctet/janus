@@ -41,10 +41,15 @@ namespace janus
         const std::vector<double> &get_positions_y() const { return y_; }
         const std::vector<double> &get_velocities_x() const { return vx_; }
         const std::vector<double> &get_velocities_y() const { return vy_; }
+        const std::vector<double> &get_accelerations_x() const { return ax_; }
+        const std::vector<double> &get_accelerations_y() const { return ay_; }
 
         // Utility functions
         static double wrap(double u, double L);
         static double min_image(double dx, double L);
+
+        // Adaptive timestep calculation
+        double calculate_adaptive_timestep() const;
 
     private:
         SimulationConfig config_;
@@ -55,10 +60,12 @@ namespace janus
         void *device_data_ = nullptr;
         size_t data_size_ = 0;
         double *d_x = nullptr, *d_y = nullptr, *d_vx = nullptr, *d_vy = nullptr;
+        double *d_ax = nullptr, *d_ay = nullptr;
 
         // Simulation data - SoA (Struct of Arrays) for coalesced access
         std::vector<double> x_, y_;   // positions (2D)
         std::vector<double> vx_, vy_; // velocities (2D)
+        std::vector<double> ax_, ay_; // accelerations (2D)
         std::vector<double> m_;       // masses
         std::vector<int8_t> sgn_;     // signs
     };

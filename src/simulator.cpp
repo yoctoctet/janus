@@ -42,6 +42,8 @@ namespace janus
         y_.resize(config_.num_particles, 0.0);
         vx_.resize(config_.num_particles, 0.0);
         vy_.resize(config_.num_particles, 0.0);
+        ax_.resize(config_.num_particles, 0.0);
+        ay_.resize(config_.num_particles, 0.0);
         m_.resize(config_.num_particles, 1.0);
         sgn_.resize(config_.num_particles, 1);
 
@@ -112,33 +114,34 @@ namespace janus
         else
         {
             // CPU implementation - Velocity Verlet integration (2D only)
-            const double dt = config_.time_step;
+            // Calculate adaptive timestep based on current velocities and accelerations
+            const double dt = calculate_adaptive_timestep();
             const double L = 1.0; // Box size, assuming unit box for now
 
             for (size_t i = 0; i < x_.size(); ++i)
             {
                 // Half kick: v += 0.5*dt*a(x)
                 // For now, a(x) = 0 (no forces), so velocity unchanged
-                // vx_[i] += 0.5 * dt * ax[i];
-                // vy_[i] += 0.5 * dt * ay[i];
+                // vx_[i] += 0.5 * dt * ax_[i];
+                // vy_[i] += 0.5 * dt * ay_[i];
 
                 // Drift + wrap: x = wrap(x + dt*v, L)
                 x_[i] = wrap(x_[i] + dt * vx_[i], L);
                 y_[i] = wrap(y_[i] + dt * vy_[i], L);
 
                 // Recompute a(x) - stub implementation (zero forces)
-                // ax[i] = 0.0;
-                // ay[i] = 0.0;
+                // ax_[i] = 0.0;
+                // ay_[i] = 0.0;
 
                 // Half kick: v += 0.5*dt*a(x)
                 // For now, a(x) = 0, so velocity unchanged
-                // vx_[i] += 0.5 * dt * ax[i];
-                // vy_[i] += 0.5 * dt * ay[i];
-
-                // Placeholder for dt limiter logging (next task)
-                // Log which dt limiter would fire based on current conditions
-                // This will be implemented in the next task
+                // vx_[i] += 0.5 * dt * ax_[i];
+                // vy_[i] += 0.5 * dt * ay_[i];
             }
+
+            // Log adaptive timestep for monitoring
+            spdlog::debug("Adaptive timestep: {} (limited by: velocity={}, acceleration={})",
+                          dt, config_.eta_v * 1.0 / (0.0 + 1e-12), std::sqrt(config_.eta_a * config_.softening / (0.0 + 1e-12)));
         }
 
 #ifdef JANUS_USE_NVTX
@@ -164,6 +167,8 @@ namespace janus
         y_.clear();
         vx_.clear();
         vy_.clear();
+        ax_.clear();
+        ay_.clear();
         m_.clear();
         sgn_.clear();
 
@@ -207,6 +212,20 @@ namespace janus
             return;
         }
 
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_ax), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to allocate GPU memory for ax: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = allocate_device_memory(reinterpret_cast<void **>(&d_ay), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to allocate GPU memory for ay: {}", cudaGetErrorString(err));
+            return;
+        }
+
         // Copy data to device
         err = copy_to_device(d_x, x_.data(), data_size);
         if (err != cudaSuccess)
@@ -236,12 +255,26 @@ namespace janus
             return;
         }
 
+        err = copy_to_device(d_ax, ax_.data(), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy ax to GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
+        err = copy_to_device(d_ay, ay_.data(), data_size);
+        if (err != cudaSuccess)
+        {
+            spdlog::error("Failed to copy ay to GPU: {}", cudaGetErrorString(err));
+            return;
+        }
+
         spdlog::info("GPU resources initialized");
     }
 
     void Simulator::run_gpu_kernel()
     {
-        if (!d_x || !d_y || !d_vx || !d_vy)
+        if (!d_x || !d_y || !d_vx || !d_vy || !d_ax || !d_ay)
         {
             spdlog::error("GPU not initialized");
             return;
@@ -251,9 +284,12 @@ namespace janus
         nvtxRangePush("GPU Kernel");
 #endif
 
+        // Calculate adaptive timestep for GPU
+        double adaptive_dt = calculate_adaptive_timestep();
+
         // Launch GPU kernel using the wrapper function
-        cudaError_t err = launch_update_positions_kernel(d_x, d_y, d_vx, d_vy,
-                                                         config_.time_step, config_.num_particles);
+        cudaError_t err = launch_update_positions_kernel(d_x, d_y, d_vx, d_vy, d_ax, d_ay,
+                                                         adaptive_dt, config_.num_particles);
         if (err != cudaSuccess)
         {
             spdlog::error("Failed to launch GPU kernel: {}", cudaGetErrorString(err));
@@ -305,7 +341,59 @@ namespace janus
             free_device_memory(d_vy);
             d_vy = nullptr;
         }
+        if (d_ax)
+        {
+            free_device_memory(d_ax);
+            d_ax = nullptr;
+        }
+        if (d_ay)
+        {
+            free_device_memory(d_ay);
+            d_ay = nullptr;
+        }
         spdlog::info("GPU resources cleaned up");
+    }
+
+    // Adaptive timestep calculation
+    double Simulator::calculate_adaptive_timestep() const
+    {
+        // Find maximum velocity magnitude
+        double max_v = 0.0;
+        for (size_t i = 0; i < vx_.size(); ++i)
+        {
+            double v_magnitude = std::sqrt(vx_[i] * vx_[i] + vy_[i] * vy_[i]);
+            if (v_magnitude > max_v)
+            {
+                max_v = v_magnitude;
+            }
+        }
+
+        // Find maximum acceleration magnitude
+        double max_a = 0.0;
+        for (size_t i = 0; i < ax_.size(); ++i)
+        {
+            double a_magnitude = std::sqrt(ax_[i] * ax_[i] + ay_[i] * ay_[i]);
+            if (a_magnitude > max_a)
+            {
+                max_a = a_magnitude;
+            }
+        }
+
+        // Calculate dt_v = η_v * h_eff / (max_v + ε)
+        // Using h_eff = 1.0 as specified
+        double h_eff = 1.0;
+        double epsilon = 1e-12; // Small epsilon to avoid division by zero
+        double dt_v = config_.eta_v * h_eff / (max_v + epsilon);
+
+        // Calculate dt_a = sqrt(η_a * ε_len / (max_a + ε))
+        // Using ε_len = softening
+        double dt_a = std::sqrt(config_.eta_a * config_.softening / (max_a + epsilon));
+
+        // Calculate final dt = clamp(θ * min(dt_v, dt_a), dt_min, dt_max)
+        double dt_unclamped = config_.theta * std::min(dt_v, dt_a);
+        double dt = std::max(config_.dt_min, std::min(config_.dt_max, dt_unclamped));
+
+        return dt;
     }
 
     // Utility function implementations

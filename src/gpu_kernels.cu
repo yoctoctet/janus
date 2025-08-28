@@ -15,14 +15,24 @@ namespace janus
     }
 
     __global__ void update_positions_kernel(double *x, double *y, double *vx, double *vy,
-                                            double time_step, int num_particles)
+                                            double *ax, double *ay, double time_step, int num_particles)
     {
         int idx = blockIdx.x * blockDim.x + threadIdx.x;
         if (idx < num_particles)
         {
-            // Simple Euler integration for 2D
+            // Velocity Verlet integration for 2D
+            // Half kick: v += 0.5*dt*a
+            vx[idx] += 0.5 * time_step * ax[idx];
+            vy[idx] += 0.5 * time_step * ay[idx];
+
+            // Drift: x += dt*v
             x[idx] += vx[idx] * time_step;
             y[idx] += vy[idx] * time_step;
+
+            // Note: Second half kick and acceleration update would be done here
+            // For now, keeping accelerations as-is (zero forces)
+            // vx[idx] += 0.5 * time_step * ax[idx];
+            // vy[idx] += 0.5 * time_step * ay[idx];
         }
     }
 
@@ -72,14 +82,14 @@ namespace janus
 
     // High-level GPU kernel launcher
     cudaError_t launch_update_positions_kernel(double *d_x, double *d_y, double *d_vx, double *d_vy,
-                                               double time_step, int num_particles)
+                                               double *d_ax, double *d_ay, double time_step, int num_particles)
     {
         // Compute grid and block dimensions
         int block_size = get_optimal_block_size(num_particles);
         int grid_size = get_optimal_grid_size(num_particles, block_size);
 
         // Launch GPU kernel
-        update_positions_kernel<<<grid_size, block_size>>>(d_x, d_y, d_vx, d_vy, time_step, num_particles);
+        update_positions_kernel<<<grid_size, block_size>>>(d_x, d_y, d_vx, d_vy, d_ax, d_ay, time_step, num_particles);
 
         // Check for kernel launch errors
         cudaError_t err = cudaGetLastError();
