@@ -1,34 +1,47 @@
-cmake_minimum_required(VERSION 3.10)
-project(janus
-        LANGUAGES CUDA CXX
-        VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.18)
+project(janus-p3m LANGUAGES CXX CUDA)
 
-set(CMAKE_CUDA_ARCHITECTURES 86)
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+# Enable separable compilation for CUDA
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+
+# Project options
+option(JANUS_USE_NVTX "Enable NVIDIA Tools Extension profiling" OFF)
+option(JANUS_FAST_MATH "Enable CUDA fast math optimizations" OFF)
+option(JANUS_DETERMINISTIC "Enable deterministic execution" ON)
+
+# CUDA compiler flags
+if(JANUS_FAST_MATH)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use_fast_math")
+endif()
+
+if(JANUS_DETERMINISTIC)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --default-stream per-thread")
+endif()
+
+# Include directories for vendor libraries
+include_directories(
+    vendor/cli11/include
+    vendor/spdlog/include
+    vendor/tomlpp
+    vendor/nlohmann
+    vendor/gtest/googletest/include
+)
+
+# Find required packages
+find_package(CUDAToolkit REQUIRED)
+if(JANUS_USE_NVTX)
+    find_package(NVTX REQUIRED)
+endif()
+
+# Enable testing
 enable_testing()
 
-# Try to find GTest, but make it optional
-find_package(GTest QUIET)
-if(NOT GTest_FOUND)
-    message(WARNING "GTest not found. Unit tests will not be built.")
-    message("To install GTest on Ubuntu/Debian: sudo apt-get install libgtest-dev")
-    message("Then build and install: cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && sudo cp *.a /usr/lib")
-    set(BUILD_TESTS OFF)
-else()
-    set(BUILD_TESTS ON)
-endif()
-
-find_package(CUDAToolkit REQUIRED)
-
-# Include directories
-include_directories(include)
-
-# Main executable
-add_executable(janus sources/main.cu)
-
-# Build tests only if GTest is available
-if(BUILD_TESTS)
-    message(STATUS "Unit tests will be built (GTest found)")
-else()
-    message(STATUS "Unit tests will NOT be built (GTest not found)")
-endif()
+# Add subdirectories
+add_subdirectory(src)
+add_subdirectory(tests)
