@@ -1,4 +1,4 @@
-#include "direct_sum_force_cpu.h"
+#include "force/direct_sum_force_cpu.h"
 
 namespace janus
 {

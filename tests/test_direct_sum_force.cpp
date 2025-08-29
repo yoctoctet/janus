@@ -2,8 +2,8 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
-#include "direct_sum_force_cpu.h"
-#include "direct_sum_force_cuda.h"
+#include "force/direct_sum_force_cpu.h"
+#include "force/direct_sum_force_cuda.h"
 #include "types.h"
 
 namespace janus

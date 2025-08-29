@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
-#include "direct_sum_force_cpu.h"
+#include "force/direct_sum_force_cpu.h"
 #include "types.h"
 
 namespace janus

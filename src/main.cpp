@@ -3,8 +3,8 @@
 
 #include "types.h"
 #include "buffer.h"
-#include "direct_sum_force_cpu.h"
-#include "direct_sum_force_cuda.h"
+#include "force/direct_sum_force_cpu.h"
+#include "force/direct_sum_force_cuda.h"
 
 int main(int argc, char *argv[])
 {

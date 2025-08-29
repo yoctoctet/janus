@@ -28,10 +28,10 @@ enable_testing()
 add_library(janus-lib
         src/buffer.cpp
         src/buffer_kernels.cu
-        src/direct_sum_force_cpu.cpp
-        src/direct_sum_force_cuda.cu)
+        src/force/direct_sum_force_cpu.cpp
+        src/force/direct_sum_force_cuda.cu)
 
-target_include_directories(janus-lib PUBLIC src)
+target_include_directories(janus-lib PUBLIC include)
 
 target_link_libraries(janus-lib PUBLIC spdlog::spdlog)
 target_link_libraries(janus-lib PUBLIC CUDA::cudart)
