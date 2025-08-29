@@ -84,7 +84,7 @@ namespace janus
         computeCPU(cpu_particles, 0.0);
         computeCUDA(cuda_particles, 0.0);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
     }
 
     // X2: CPU ↔ CUDA agreement (equilateral triangle)
@@ -111,7 +111,7 @@ namespace janus
         computeCPU(cpu_particles, 0.0);
         computeCUDA(cuda_particles, 0.0);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
     }
 
     // X3: CPU ↔ CUDA agreement (random small system + momentum conservation)
@@ -142,7 +142,7 @@ namespace janus
         computeCPU(cpu_particles, 1e-6);
         computeCUDA(cuda_particles, 1e-6);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
 
         // Momentum conservation
         for (size_t i = 0; i < n; ++i)
@@ -155,6 +155,20 @@ namespace janus
             total_mass += cpu_particles.m.data()[i];
         EXPECT_NEAR(total_momentum_x, 0.0, 1e-12 * total_mass);
         EXPECT_NEAR(total_momentum_y, 0.0, 1e-12 * total_mass);
+
+        // Momentum conservation for CUDA
+        double total_momentum_x_cuda = 0.0;
+        double total_momentum_y_cuda = 0.0;
+        for (size_t i = 0; i < n; ++i)
+        {
+            total_momentum_x_cuda += cuda_particles.m.data()[i] * cuda_particles.ax.data()[i];
+            total_momentum_y_cuda += cuda_particles.m.data()[i] * cuda_particles.ay.data()[i];
+        }
+        double total_mass_cuda = 0.0;
+        for (size_t i = 0; i < n; ++i)
+            total_mass_cuda += cuda_particles.m.data()[i];
+        EXPECT_NEAR(total_momentum_x_cuda, 0.0, 1e-12 * total_mass_cuda);
+        EXPECT_NEAR(total_momentum_y_cuda, 0.0, 1e-12 * total_mass_cuda);
     }
 
     // X4: Translation invariance
@@ -204,8 +218,8 @@ namespace janus
         computeCPU(translated_cpu, 0.0);
         computeCUDA(translated_cuda, 0.0);
 
-        EXPECT_TRUE(compareResults(translated_cpu, translated_cuda));
-        EXPECT_TRUE(compareResults(original, translated_cpu));
+        ASSERT_TRUE(compareResults(translated_cpu, translated_cuda));
+        ASSERT_TRUE(compareResults(original, translated_cpu));
     }
 
     // X5: Zero-mass edge consistency
@@ -229,7 +243,7 @@ namespace janus
         computeCPU(cpu_particles, 0.0);
         computeCUDA(cuda_particles, 0.0);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
     }
 
     // X6: Overwrite semantics parity
@@ -259,7 +273,7 @@ namespace janus
         computeCPU(cpu_particles, 0.0);
         computeCUDA(cuda_particles, 0.0);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
         EXPECT_NEAR(cpu_particles.ax.data()[0], 3.0, 1e-13);
         EXPECT_NEAR(cuda_particles.ax.data()[0], 3.0, 1e-13);
     }
@@ -285,7 +299,7 @@ namespace janus
         computeCPU(cpu_particles, 1.0);
         computeCUDA(cuda_particles, 1.0);
 
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
         EXPECT_NEAR(std::abs(cpu_particles.ax.data()[0]), 1.0 / std::pow(2.0, 1.5), 1e-13);
     }
 
@@ -329,7 +343,7 @@ namespace janus
         EXPECT_NE(cpu_particles.ax.data()[1], ax1_cpu);
         EXPECT_NE(cuda_particles.ax.data()[1], ax1_cuda);
         // But CPU and CUDA still match
-        EXPECT_TRUE(compareResults(cpu_particles, cuda_particles));
+        ASSERT_TRUE(compareResults(cpu_particles, cuda_particles));
     }
 
 } // namespace janus

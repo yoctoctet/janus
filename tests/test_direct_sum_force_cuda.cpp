@@ -336,28 +336,10 @@ namespace janus
         EXPECT_NEAR(ay2_1, ay2_2, 1e-13 + 1e-13 * std::abs(ay2_1));
     }
 
-    // CUDA-specific: Work-size independence (test with different n)
-    TEST_F(DirectSumForceCUDATest, WorkSizeIndependence)
+    // CUDA-specific: Large N no NaN/inf (test with different n)
+    TEST_F(DirectSumForceCUDATest, LargeN_NoNaN)
     {
-        // Test with n=3 and n=300 to see different block configurations
-        Particles<Space::Host> host_particles3(3);
-        Particles<Space::Device> device_particles3(3);
-        host_particles3.m.data()[0] = 1.0;
-        host_particles3.m.data()[1] = 1.0;
-        host_particles3.m.data()[2] = 1.0;
-        host_particles3.px.data()[0] = 0.0;
-        host_particles3.py.data()[0] = 0.0;
-        host_particles3.px.data()[1] = 1.0;
-        host_particles3.py.data()[1] = 0.0;
-        host_particles3.px.data()[2] = 0.5;
-        host_particles3.py.data()[2] = std::sqrt(3.0) / 2.0;
-
-        DirectSumForceCuda force(0.0);
-        copyToDeviceAndCompute(host_particles3, force, device_particles3);
-
-        double ax0 = host_particles3.ax.data()[0];
-        double ay0 = host_particles3.ay.data()[0];
-
+        // Test with n=300 to check for NaN/inf in large systems
         Particles<Space::Host> host_particles300(300);
         Particles<Space::Device> device_particles300(300);
         for (size_t i = 0; i < 300; ++i)
@@ -366,15 +348,14 @@ namespace janus
             host_particles300.px.data()[i] = static_cast<double>(i);
             host_particles300.py.data()[i] = 0.0;
         }
+        DirectSumForceCuda force(0.0);
         copyToDeviceAndCompute(host_particles300, force, device_particles300);
 
-        // For i=0 in 300, similar to the 3-particle case but with more particles
-        // But since positions are different, results will differ, but the point is numerical stability
-        // For simplicity, just check no NaN
+        // Check no NaN or inf
         for (size_t i = 0; i < 300; ++i)
         {
-            EXPECT_FALSE(std::isnan(host_particles300.ax.data()[i]));
-            EXPECT_FALSE(std::isnan(host_particles300.ay.data()[i]));
+            EXPECT_TRUE(std::isfinite(host_particles300.ax.data()[i]));
+            EXPECT_TRUE(std::isfinite(host_particles300.ay.data()[i]));
         }
     }
 
