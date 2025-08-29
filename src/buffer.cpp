@@ -5,6 +5,11 @@
 #include <cuda_runtime.h>
 #include <spdlog/spdlog.h>
 
+// Define for CUDA kernel thread count
+#ifndef JANUS_FILL_THREADS_PER_BLOCK
+#define JANUS_FILL_THREADS_PER_BLOCK 256
+#endif
+
 namespace janus
 {
     // Helper function to check CUDA errors
@@ -16,6 +21,14 @@ namespace janus
             spdlog::error(message);
             throw BufferException(message);
         }
+    }
+
+    // Forward declarations for CUDA kernel wrapper functions
+    extern "C"
+    {
+        cudaError_t launchFillKernelDouble(double *data, double value, size_t size);
+        cudaError_t launchFillKernelFloat(float *data, float value, size_t size);
+        cudaError_t launchFillKernelInt(int *data, int value, size_t size);
     }
 
     // Host specialization implementation
@@ -218,12 +231,35 @@ namespace janus
     {
         if (data_)
         {
-            // For device memory, we need to use cudaMemset for zero, but for other values we need a kernel
-            // For now, we'll copy from a host buffer
-            std::vector<T> host_data(size_, value);
-            checkCudaError(cudaMemcpy(data_, host_data.data(), bytes(), cudaMemcpyHostToDevice),
-                           "fill device buffer");
-            spdlog::debug("Filled device buffer with value");
+            cudaError_t error;
+
+            // Launch appropriate kernel based on type
+            if constexpr (std::is_same_v<T, double>)
+            {
+                error = launchFillKernelDouble(data_, value, size_);
+            }
+            else if constexpr (std::is_same_v<T, float>)
+            {
+                error = launchFillKernelFloat(data_, value, size_);
+            }
+            else if constexpr (std::is_same_v<T, int>)
+            {
+                error = launchFillKernelInt(data_, value, size_);
+            }
+            else
+            {
+                // Fallback to memcpy for unsupported types
+                std::vector<T> host_data(size_, value);
+                error = cudaMemcpy(data_, host_data.data(), bytes(), cudaMemcpyHostToDevice);
+            }
+
+            // Check for kernel launch errors
+            checkCudaError(error, "kernel launch for fill");
+
+            // Synchronize to ensure kernel completion
+            checkCudaError(cudaDeviceSynchronize(), "kernel synchronization for fill");
+
+            spdlog::debug("Filled device buffer with value using CUDA kernel");
         }
     }
 
@@ -260,4 +296,22 @@ namespace janus
     template void Buffer<int, Space::Host>::copy_from<Space::Device>(const Buffer<int, Space::Device> &);
     template void Buffer<int, Space::Device>::copy_from<Space::Host>(const Buffer<int, Space::Host> &);
     template void Buffer<int, Space::Device>::copy_from<Space::Device>(const Buffer<int, Space::Device> &);
+
+    // Additional template instantiations for test types
+    template class Buffer<uint32_t, Space::Host>;
+    template class Buffer<uint32_t, Space::Device>;
+    template class Buffer<char, Space::Host>;
+    template class Buffer<char, Space::Device>;
+
+    // Copy instantiations for test types
+    template void Buffer<uint32_t, Space::Host>::copy_from<Space::Host>(const Buffer<uint32_t, Space::Host> &);
+    template void Buffer<uint32_t, Space::Host>::copy_from<Space::Device>(const Buffer<uint32_t, Space::Device> &);
+    template void Buffer<uint32_t, Space::Device>::copy_from<Space::Host>(const Buffer<uint32_t, Space::Host> &);
+    template void Buffer<uint32_t, Space::Device>::copy_from<Space::Device>(const Buffer<uint32_t, Space::Device> &);
+
+    template void Buffer<char, Space::Host>::copy_from<Space::Host>(const Buffer<char, Space::Host> &);
+    template void Buffer<char, Space::Host>::copy_from<Space::Device>(const Buffer<char, Space::Device> &);
+    template void Buffer<char, Space::Device>::copy_from<Space::Host>(const Buffer<char, Space::Host> &);
+    template void Buffer<char, Space::Device>::copy_from<Space::Device>(const Buffer<char, Space::Device> &);
+
 }

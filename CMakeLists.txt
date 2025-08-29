@@ -16,17 +16,36 @@ add_compile_definitions(
         JANUS_DESCRIPTION="${PROJECT_DESCRIPTION}"
 )
 
+include_directories(src)
+
+find_package(CUDAToolkit REQUIRED)
 find_package(GTest REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(spdlog REQUIRED)
 
 enable_testing()
 
+#========== MAIN PROGRAM ==========#
+
 add_executable(janus
     src/main.cpp
-    src/buffer.cpp)
-
-target_include_directories(janus PRIVATE src)
+    src/buffer.cpp
+    src/buffer_kernels.cu)
 
 target_link_libraries(janus PRIVATE spdlog::spdlog)
 target_link_libraries(janus PRIVATE CLI11::CLI11)
+target_link_libraries(janus PRIVATE CUDA::cudart)
+
+#========== UNIT TESTS ==========#
+
+add_executable(test_buffer
+        tests/test_buffer.cpp
+        src/buffer.cpp
+        src/buffer_kernels.cu)
+
+target_link_libraries(test_buffer PRIVATE GTest::gtest_main)
+target_link_libraries(test_buffer PRIVATE spdlog::spdlog)
+target_link_libraries(test_buffer PRIVATE CUDA::cudart)
+
+include(GoogleTest)
+gtest_discover_tests(test_buffer)
