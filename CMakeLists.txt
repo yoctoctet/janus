@@ -25,4 +25,8 @@ enable_testing()
 add_executable(janus
     src/main.cpp
     src/buffer.cpp)
+
 target_include_directories(janus PRIVATE src)
+
+target_link_libraries(janus PRIVATE spdlog::spdlog)
+target_link_libraries(janus PRIVATE CLI11::CLI11)

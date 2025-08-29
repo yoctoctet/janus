@@ -2,11 +2,6 @@
 
 #include <cstddef>
 #include <stdexcept>
-#include <string>
-#include <memory>
-#include <type_traits>
-#include <spdlog/spdlog.h>
-#include <cuda_runtime.h>
 
 namespace janus
 {
