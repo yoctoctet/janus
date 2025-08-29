@@ -28,9 +28,9 @@ namespace janus
                 double r2 = dx * dx + dy * dy + epsilon * epsilon;
                 double r = sqrt(r2);
                 double inv_r3 = 1.0 / (r2 * r);
-                double f = m[i] * m[j] * inv_r3;
-                ax_sum += f * dx / m[i];
-                ay_sum += f * dy / m[i];
+                double f = m[j] * inv_r3;
+                ax_sum += f * dx;
+                ay_sum += f * dy;
             }
             ax[i] = ax_sum;
             ay[i] = ay_sum;

@@ -30,9 +30,9 @@ namespace janus
                 double r2 = dx * dx + dy * dy + epsilon_ * epsilon_;
                 double r = sqrt(r2);
                 double inv_r3 = 1.0 / (r2 * r);
-                double f = m[i] * m[j] * inv_r3;
-                ax[i] += f * dx / m[i];
-                ay[i] += f * dy / m[i];
+                double f = m[j] * inv_r3;
+                ax[i] += f * dx;
+                ay[i] += f * dy;
             }
         }
     }
